@@ -19,6 +19,7 @@
     const bodyParser = require('body-parser');
     const http = require('http');
     const mysql = require('mysql');
+    const bcrypt = require('bcrypt');
 
     /*******
      * SETUP
@@ -30,7 +31,27 @@
         extended: true
     }));
 
-    app.use(cors());
+    // Add headers
+    // app.use(function (req, res, next) {
+
+    //     // Website you wish to allow to connect
+    //     res.setHeader('Access-Control-Allow-Origin', '*');
+
+    //     // Request methods you wish to allow
+    //     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
+
+    //     // Request headers you wish to allow
+    //     res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,content-type');
+
+    //     // Set to true if you need the website to include cookies in the requests sent
+    //     // to the API (e.g. in case you use sessions)
+    //     // res.setHeader('Access-Control-Allow-Credentials', true);
+
+    //     // Pass to next layer of middleware
+    //     next();
+    // });
+
+    app.use(cors({origin: '*'}));
 
     const connection = mysql.createConnection({
         host,
@@ -56,12 +77,20 @@
      * ENDPOINTS
      ***********/
     app.post('/cat/register', (req, res) => {
+        if (req.body.password.length < 8) {
+            console.log('lhey')
+            res.statusMessage = "Password is less than 8 characters";
+            res.status(401).end();
+        }
+        res.status('hello')
         const hash = hashPassword(req.body.password) // or req.data.password;
         // DB call to create the user
     });
 
     app.post('/cat/login', (req, res) => {
         // query database for the user
+        console.log('herrroooo')
+        res.send('hello');
         if (checkPassword(req.body.password, hash)) { // or req.data.password;
             res.json(/* some information*/);
         } else {
@@ -91,4 +120,8 @@
         // Load hash from DB.
         return bcrypt.compareSync(password, hash); // true
     }
+
+    server.listen(PORT, () => {
+        console.log('Express server listening on localhost port: ' + PORT);
+    });
 }());

@@ -30,3 +30,18 @@
     transform: rotate(360deg);
   }
 }
+
+.form-box {
+  height: 480px;
+  width: 360px;
+  background: #61dafb;
+  opacity: .7;
+  overflow: scroll;
+}
+
+button {
+  background:#0d5368;
+}
+.pointer {
+  cursor: pointer;
+}
