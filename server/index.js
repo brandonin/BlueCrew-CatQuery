@@ -7,7 +7,7 @@
     const user = process.env.BLUECREW_DB_USER;
     const password = process.env.BLUECREW_DB_PASS;
     const host = process.env.BLUECREW_HOST;
-    const db = process.env.BLUECREW_DB;
+    const database = process.env.BLUECREW_DB;
     const PORT = process.env.BLUECREW_SERVER_PORT || 9001;
 
     /***********
@@ -35,7 +35,8 @@
     const connection = mysql.createConnection({
         host,
         user,
-        password
+        password,
+        database
     });
 
     connection.connect(function (err) {
@@ -47,25 +48,47 @@
         console.log('connected as id ' + connection.threadId);
     });
 
-    connection.query('SELECT * FROM "cats";', function (error, results, fields) {
-        console.log(error, results, fields);
+    connection.query('SELECT * FROM `cat`', function (error, results, fields) {
+        console.log(error, results);
     })
+
     /***********
      * ENDPOINTS
      ***********/
     app.post('/cat/register', (req, res) => {
-
+        const hash = hashPassword(req.body.password) // or req.data.password;
+        // DB call to create the user
     });
 
     app.post('/cat/login', (req, res) => {
-
+        // query database for the user
+        if (checkPassword(req.body.password, hash)) { // or req.data.password;
+            res.json(/* some information*/);
+        } else {
+            res.error(/* passwords don't match */);
+        }
     });
 
     app.get('/cats', (req, res) => {
-
+        connection.query('SELECT * FROM `cat`', function (error, results, fields) {
+            console.log(error, results);
+        })
     });
 
     app.get('/cats/random', (req, res) => {
 
     });
+
+    /*********
+     * HELPERS
+     *********/
+
+    const hashPassword = password => {
+        var salt = bcrypt.genSaltSync(10);
+        return bcrypt.hashSync(password, salt);
+    }
+    const checkPassword = (password, hash) => {
+        // Load hash from DB.
+        return bcrypt.compareSync(password, hash); // true
+    }
 }());
