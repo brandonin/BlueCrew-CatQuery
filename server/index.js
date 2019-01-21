@@ -5,6 +5,7 @@
      * CONFIGURATION VARIABLES
      *************************/
     const user = process.env.BLUECREW_DB_USER;
+    const secret = process.env.BLUECREW_SECRET;
     const password = process.env.BLUECREW_DB_PASS;
     const host = process.env.BLUECREW_HOST;
     const database = process.env.BLUECREW_DB;
@@ -20,6 +21,8 @@
     const http = require('http');
     const mysql = require('mysql');
     const bcrypt = require('bcrypt');
+    const jwt = require('express-jwt');
+
 
     /*******
      * SETUP
@@ -30,26 +33,6 @@
     app.use(bodyParser.urlencoded({
         extended: true
     }));
-
-    // Add headers
-    // app.use(function (req, res, next) {
-
-    //     // Website you wish to allow to connect
-    //     res.setHeader('Access-Control-Allow-Origin', '*');
-
-    //     // Request methods you wish to allow
-    //     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
-
-    //     // Request headers you wish to allow
-    //     res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,content-type');
-
-    //     // Set to true if you need the website to include cookies in the requests sent
-    //     // to the API (e.g. in case you use sessions)
-    //     // res.setHeader('Access-Control-Allow-Credentials', true);
-
-    //     // Pass to next layer of middleware
-    //     next();
-    // });
 
     app.use(cors({origin: '*'}));
 
@@ -69,36 +52,69 @@
         console.log('connected as id ' + connection.threadId);
     });
 
-    connection.query('SELECT * FROM `cat`', function (error, results, fields) {
-        console.log(error, results);
-    })
-
     /***********
      * ENDPOINTS
      ***********/
     app.post('/cat/register', (req, res) => {
-        if (req.body.password.length < 8) {
-            console.log('lhey')
-            res.statusMessage = "Password is less than 8 characters";
-            res.status(401).end();
+        let errors = []
+        if (!req.body.username) {
+            errors.push("No username provided");
         }
-        res.status('hello')
-        const hash = hashPassword(req.body.password) // or req.data.password;
-        // DB call to create the user
+        if (req.body.password.length < 8) {
+            errors.push(" Password is less than 8 characters");
+        }
+        if (!req.body.name) {
+            errors.push(" Name is missing!");
+        }
+        if (errors.length > 0) {
+            res.statusMessage = errors;
+            return res.status(401).end();
+        }
+
+        connection.query("SELECT * FROM `cat` WHERE username = ?",
+            [req.body.username], (error, results) => {
+                if (results.length > 0) {
+                    res.statusMessage = "user already exists.";
+                    return res.status(401).end();
+                } else {
+                    const hash = hashPassword(req.body.password);
+                    connection.query('INSERT INTO `cat` (name, username, password, birthdate, breed, imageUrl, weight, lastSeenAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [req.body.name, req.body.username, hash, req.body.birthdate, req.body.breed, req.body.imageUrl, req.body.weight, new Date()], (err, result) => {
+                        if (err) {
+                            res.statusMessage = err;
+                            return res.status(401).end();
+                        } else {
+                            return res.status(200).send("user created successfully");
+                        }
+                    })
+                }
+            });
     });
 
     app.post('/cat/login', (req, res) => {
         // query database for the user
-        console.log('herrroooo')
-        res.send('hello');
-        if (checkPassword(req.body.password, hash)) { // or req.data.password;
-            res.json(/* some information*/);
-        } else {
-            res.error(/* passwords don't match */);
-        }
+        connection.query('SELECT id FROM `cat` WHERE `username` = ?',
+            [req.body.username], (error, results) => {
+                console.log(error, results);
+                if(!results) {
+                    res.statusMessage = "Username/Password Combination does not exist";
+                    return res.status(401).end();
+                }
+                console.log('results', results)
+                // if (checkPassword(req.body.password, hash)) {
+                //     res.json( /* some information*/ );
+                // } else {
+                //     res.error( /* passwords don't match */ );
+                // }
+            })
+
     });
 
-    app.get('/cats', (req, res) => {
+    app.get('/cats', jwt({secret}), (req, res) => {
+        console.log('herro')
+        if (!req.user) {
+            res.statusMessage = "Please log in to continue";
+            return res.status(401).end();
+        }
         connection.query('SELECT * FROM `cat`', function (error, results, fields) {
             console.log(error, results);
         })
