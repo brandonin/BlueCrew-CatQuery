@@ -21,8 +21,7 @@
     const http = require('http');
     const mysql = require('mysql');
     const bcrypt = require('bcrypt');
-    const jwt = require('express-jwt');
-
+    const jwt = require('jsonwebtoken');
 
     /*******
      * SETUP
@@ -83,7 +82,8 @@
                             res.statusMessage = err;
                             return res.status(401).end();
                         } else {
-                            return res.status(200).send("user created successfully");
+                            const token = jwt.sign({username}, secret, {expiresIn:36000});
+                            return res.json({status:"success", msg: token});
                         }
                     })
                 }
@@ -92,36 +92,51 @@
 
     app.post('/cat/login', (req, res) => {
         // query database for the user
-        connection.query('SELECT id FROM `cat` WHERE `username` = ?',
-            [req.body.username], (error, results) => {
-                console.log(error, results);
-                if(!results) {
-                    res.statusMessage = "Username/Password Combination does not exist";
+        const username = req.body.username,
+              password = req.body.password;
+        connection.query('SELECT * FROM `cat` WHERE `username` = ?',
+            [username], (err, results) => {
+                if (err) return res.status(500).end();
+                if(!results || results === []) {
+                    res.statusMessage = "Username does not exist";
                     return res.status(401).end();
                 }
-                console.log('results', results)
-                // if (checkPassword(req.body.password, hash)) {
-                //     res.json( /* some information*/ );
-                // } else {
-                //     res.error( /* passwords don't match */ );
-                // }
+                if (checkPassword(password, results[0].password)) {
+                    connection.query("UPDATE `cat` SET `lastSeenAt` = now() WHERE `username` = ?", [username], (err, result) => {
+                        const token = jwt.sign({username}, secret,{expiresIn: 36000});
+                        return res.json({
+                            status: "success",
+                            msg:token
+                        })
+                    })
+                } else {
+                    res.statusMessage = "Username/password combination does not exist";
+                    return res.status(401).end();
+                }
             })
 
     });
 
-    app.get('/cats', jwt({secret}), (req, res) => {
-        console.log('herro')
-        if (!req.user) {
-            res.statusMessage = "Please log in to continue";
-            return res.status(401).end();
-        }
-        connection.query('SELECT * FROM `cat`', function (error, results, fields) {
-            console.log(error, results);
+    app.get('/cats', (req, res) => {
+        var token = req.headers.authToken;
+        jwt.verify(token, secret, function (err, decoded) {
+            if(!err){
+                connection.query('SELECT birthdate, breed, username, id, imageUrl, name FROM `cat` WHERE username = ? OR id = ? OR name = ? ORDER BY lastSeenAt DESC', [req.body.username, req.body.id, req.body.name], function (error, results) {
+                    if (error) return res.status(401).send();
+                    if (results.length === 0) return res.status(401).send('invalid search criteria');
+                    return res.send(results);
+                })
+            } else {
+                return res.status(401).send(err);
+            }
         })
     });
 
     app.get('/cats/random', (req, res) => {
-
+        connection.query('SELECT imageUrl, name, breed FROM cat ORDER BY RAND() LIMIT 1', (err, result) => {
+            if (err) return res.status(401).end();
+            return res.json(result);
+        })
     });
 
     /*********
@@ -129,12 +144,10 @@
      *********/
 
     const hashPassword = password => {
-        var salt = bcrypt.genSaltSync(10);
-        return bcrypt.hashSync(password, salt);
+        return bcrypt.hashSync(password, 10);
     }
     const checkPassword = (password, hash) => {
-        // Load hash from DB.
-        return bcrypt.compareSync(password, hash); // true
+        return bcrypt.compareSync(password, hash);
     }
 
     server.listen(PORT, () => {
